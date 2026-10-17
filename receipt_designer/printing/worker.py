@@ -124,21 +124,36 @@ class PrinterWorker(QtCore.QThread):
             return Network(host, port, timeout=timeout, profile=profile)
 
         if iface == "usb":
-            # Expect hex strings/ints for vid/pid/endpoints, same as your legacy config.
-            vid = cfg.get("usb_vid")
-            pid = cfg.get("usb_pid")
-            ep_in = cfg.get("usb_in", "0x82")
-            ep_out = cfg.get("usb_out", "0x01")
+            # python-escpos Usb(idVendor, idProduct, usb_args={}, timeout=0, in_ep=..., out_ep=...)
+            from .usb_devices import discover_usb_endpoints, parse_usb_id
+
+            vid = parse_usb_id(cfg.get("usb_vid"))
+            pid = parse_usb_id(cfg.get("usb_pid"))
             if vid is None or pid is None:
-                raise RuntimeError("USB interface requires usb_vid and usb_pid in printer config.")
-            return Usb(
-                int(str(vid), 16),
-                int(str(pid), 16),
-                0,
-                int(str(ep_in), 16),
-                int(str(ep_out), 16),
-                profile=profile,
-            )
+                raise RuntimeError(
+                    "USB interface requires usb_vid and usb_pid in printer config. "
+                    "Open Printer Configuration and enter them, or use Detect USB devices."
+                )
+            # Endpoints are optional; probe the device when omitted.
+            ep_in = parse_usb_id(cfg.get("usb_in"))
+            ep_out = parse_usb_id(cfg.get("usb_out"))
+            if ep_in is None or ep_out is None:
+                discovered_in, discovered_out = discover_usb_endpoints(vid, pid)
+                if ep_in is None:
+                    ep_in = discovered_in
+                if ep_out is None:
+                    ep_out = discovered_out
+            # pyusb requires an int timeout in milliseconds (config stores seconds).
+            usb_timeout_ms = int(float(timeout) * 1000) if timeout else 0
+            kwargs = {
+                "timeout": usb_timeout_ms,
+                "profile": profile,
+            }
+            if ep_in is not None:
+                kwargs["in_ep"] = ep_in
+            if ep_out is not None:
+                kwargs["out_ep"] = ep_out
+            return Usb(vid, pid, **kwargs)
 
         if iface == "serial":
             dev = cfg.get("serial_port", "COM1")
