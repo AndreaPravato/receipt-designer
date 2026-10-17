@@ -5,9 +5,11 @@ from __future__ import annotations
 from PySide6 import QtWidgets
 
 from receipt_designer.printing.usb_devices import (
+    MAX_ENDPOINT,
     format_usb_endpoint,
     format_usb_id,
     list_usb_devices,
+    parse_usb_id,
 )
 
 
@@ -185,6 +187,21 @@ def show_printer_config_dialog(
             )
             return
 
+        # Validate USB id strings before persisting so QSettings never stores junk.
+        out_text = usb_out.text().strip()
+        in_text = usb_in.text().strip()
+        if key == "usb":
+            try:
+                parse_usb_id(vid)
+                parse_usb_id(pid)
+                if out_text:
+                    parse_usb_id(out_text, max_value=MAX_ENDPOINT)
+                if in_text:
+                    parse_usb_id(in_text, max_value=MAX_ENDPOINT)
+            except ValueError as exc:
+                QtWidgets.QMessageBox.warning(d, "Invalid USB settings", str(exc))
+                return
+
         label = cut_mode.currentText()
         result = {
             "interface": key,
@@ -192,8 +209,8 @@ def show_printer_config_dialog(
             "port": int(port.value()),
             "usb_vid": vid,
             "usb_pid": pid,
-            "usb_out": usb_out.text().strip(),
-            "usb_in": usb_in.text().strip(),
+            "usb_out": out_text,
+            "usb_in": in_text,
             "darkness": int(darkness.value()),
             "dpi": int(dpi.value()),
             "width_px": int(width_px.value()),

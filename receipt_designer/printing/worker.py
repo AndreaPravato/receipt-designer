@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from PySide6 import QtCore, QtGui
@@ -19,6 +20,13 @@ try:
     from PIL import Image
 except Exception:
     Image = None  # type: ignore
+
+# Gate host/port debug logs (avoid leaking LAN topology in shared stdout logs)
+DEBUG_PRINTING = os.environ.get("RECEIPT_DESIGNER_DEBUG_PRINTING", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 
 class WorkerSignals(QtCore.QObject):
@@ -135,8 +143,10 @@ class PrinterWorker(QtCore.QThread):
                     "Open Printer Configuration and enter them, or use Detect USB devices."
                 )
             # Endpoints are optional; probe the device when omitted.
-            ep_in = parse_usb_id(cfg.get("usb_in"))
-            ep_out = parse_usb_id(cfg.get("usb_out"))
+            from .usb_devices import MAX_ENDPOINT
+
+            ep_in = parse_usb_id(cfg.get("usb_in"), max_value=MAX_ENDPOINT)
+            ep_out = parse_usb_id(cfg.get("usb_out"), max_value=MAX_ENDPOINT)
             if ep_in is None or ep_out is None:
                 discovered_in, discovered_out = discover_usb_endpoints(vid, pid)
                 if ep_in is None:
@@ -204,12 +214,14 @@ class PrinterWorker(QtCore.QThread):
                 else:
                     resample_filter = Image.LANCZOS
 
-                print(
-                    "[ESC/POS DEBUG] action=print "
-                    f"img={pil_img.width}x{pil_img.height} "
-                    f"target_width={target_width} darkness={darkness} "
-                    f"iface={cfg.get('interface')} host={cfg.get('host')} port={cfg.get('port')}"
-                )
+                if DEBUG_PRINTING:
+                    print(
+                        "[ESC/POS DEBUG] action=print "
+                        f"img={pil_img.width}x{pil_img.height} "
+                        f"target_width={target_width} darkness={darkness} "
+                        f"iface={cfg.get('interface')} host={cfg.get('host')} "
+                        f"port={cfg.get('port')}"
+                    )
 
                 # Resize + threshold like legacy
                 if pil_img.width != target_width:
@@ -344,13 +356,14 @@ class PrinterWorker(QtCore.QThread):
         try:
             cfg = dict(self.payload.get("config") or {})
 
-            print(
-                "[ESC/POS DEBUG] starting worker",
-                "action=", self.action,
-                "escpos_available=", _ESC_POS_AVAILABLE,
-                "image_lib=", (Image is not None),
-                "dry_run=", self.dry_run,
-            )
+            if DEBUG_PRINTING:
+                print(
+                    "[ESC/POS DEBUG] starting worker",
+                    "action=", self.action,
+                    "escpos_available=", _ESC_POS_AVAILABLE,
+                    "image_lib=", (Image is not None),
+                    "dry_run=", self.dry_run,
+                )
 
             if self.dry_run:
                 self._run_dry(cfg)

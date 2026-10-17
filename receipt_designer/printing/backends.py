@@ -148,12 +148,14 @@ def make_backend(cfg: dict) -> BaseBackend:
     if iface == "usb":
         from .usb_devices import parse_usb_id
 
+        from .usb_devices import MAX_ENDPOINT
+
         vid = parse_usb_id(cfg.get("usb_vid"))
         pid = parse_usb_id(cfg.get("usb_pid"))
         # Prefer explicit OUT endpoint; fall back to legacy usb_endpoint key.
-        ep = parse_usb_id(cfg.get("usb_out"))
+        ep = parse_usb_id(cfg.get("usb_out"), max_value=MAX_ENDPOINT)
         if ep is None:
-            ep = parse_usb_id(cfg.get("usb_endpoint"))
+            ep = parse_usb_id(cfg.get("usb_endpoint"), max_value=MAX_ENDPOINT)
         iface_no = cfg.get("usb_interface")
         iface_no = int(iface_no) if iface_no is not None else None
         if vid is None or pid is None:

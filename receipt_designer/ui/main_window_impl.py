@@ -3,8 +3,6 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import json
 import os
 import random
-import urllib.request
-
 # Split modules
 from ..core.models import Element, Template
 from ..core.commands import AddItemCmd, DeleteItemCmd, MoveResizeCmd, PropertyChangeCmd, GroupItemsCmd, UngroupItemsCmd  # ready for future use
